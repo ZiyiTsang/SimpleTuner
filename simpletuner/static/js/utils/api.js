@@ -45,7 +45,19 @@
                 return config.getEndpointUrl(normalized);
             }
 
-            return `${this.apiBaseUrl}${normalized}`;
+            // Handle duplicate /api prefix when apiBaseUrl already contains /api
+            let finalPath = normalized;
+            const apiBase = this.apiBaseUrl;
+            
+            // Enhanced duplicate prefix detection logic
+            // If apiBaseUrl ends with /api and path starts with /api, remove duplicate
+            if (apiBase.endsWith('/api') && normalized.startsWith('/api/')) {
+                finalPath = normalized.substring(4); // Remove '/api' prefix
+            } else if (apiBase.endsWith('/api/') && normalized.startsWith('/api/')) {
+                finalPath = normalized.substring(5); // Remove '/api/' prefix
+            }
+            
+            return `${apiBase}${finalPath}`;
         },
 
         resolveWebsocket(path, options = {}) {

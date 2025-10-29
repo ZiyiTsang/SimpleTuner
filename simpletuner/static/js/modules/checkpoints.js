@@ -4,7 +4,7 @@
  */
 
 if (!window.checkpointsManager) {
-    window.checkpointsManager = function() {
+    window.checkpointsManager = function () {
         return {
             // State
             checkpoints: [],
@@ -84,7 +84,7 @@ if (!window.checkpointsManager) {
                     return this.environment;
                 }
 
-                const response = await ApiClient.fetch('/api/configs/active');
+                const response = await ApiClient.fetch('/configs/active');
                 if (!response.ok) {
                     throw new Error('Failed to get active config');
                 }
@@ -195,7 +195,7 @@ if (!window.checkpointsManager) {
                 this.loading.checkpoints = true;
                 try {
                     const environment = await this.ensureEnvironment();
-                    const response = await fetch(`/api/checkpoints?environment=${encodeURIComponent(environment)}&sort_by=${this.sortBy}`);
+                    const response = await ApiClient.fetch(`/checkpoints?environment=${encodeURIComponent(environment)}&sort_by=${this.sortBy}`);
                     if (!response.ok) {
                         throw new Error('Failed to load checkpoints');
                     }
@@ -223,7 +223,7 @@ if (!window.checkpointsManager) {
             async loadRetentionConfig() {
                 try {
                     const environment = await this.ensureEnvironment();
-                    const response = await fetch(`/api/checkpoints/retention?environment=${encodeURIComponent(environment)}`);
+                    const response = await ApiClient.fetch(`/checkpoints/retention?environment=${encodeURIComponent(environment)}`);
                     if (!response.ok) {
                         throw new Error('Failed to load retention config');
                     }
@@ -304,7 +304,7 @@ if (!window.checkpointsManager) {
 
                 try {
                     const environment = await this.ensureEnvironment();
-                    const response = await fetch(`/api/checkpoints/${encodeURIComponent(id)}/validate`, {
+                    const response = await ApiClient.fetch(`/checkpoints/${encodeURIComponent(id)}/validate`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
@@ -370,7 +370,7 @@ if (!window.checkpointsManager) {
 
                 try {
                     const environment = await this.ensureEnvironment();
-                    const response = await fetch(`/api/checkpoints/${encodeURIComponent(checkpoint.name)}?environment=${encodeURIComponent(environment)}`, {
+                    const response = await ApiClient.fetch(`/checkpoints/${encodeURIComponent(checkpoint.name)}?environment=${encodeURIComponent(environment)}`, {
                         method: 'DELETE'
                     });
 
@@ -437,7 +437,7 @@ if (!window.checkpointsManager) {
 
                 try {
                     const environment = await this.ensureEnvironment();
-                    const response = await ApiClient.fetch('/api/checkpoints/retention', {
+                    const response = await ApiClient.fetch('/checkpoints/retention', {
                         method: 'PUT',
                         headers: {
                             'Content-Type': 'application/json'
@@ -479,7 +479,7 @@ if (!window.checkpointsManager) {
 
                 try {
                     const environment = await this.ensureEnvironment();
-                    const response = await ApiClient.fetch('/api/checkpoints/cleanup/preview', {
+                    const response = await ApiClient.fetch('/checkpoints/cleanup/preview', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
@@ -541,7 +541,7 @@ if (!window.checkpointsManager) {
 
                 try {
                     const environment = await this.ensureEnvironment();
-                    const response = await ApiClient.fetch('/api/checkpoints/cleanup/execute', {
+                    const response = await ApiClient.fetch('/checkpoints/cleanup/execute', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
@@ -695,7 +695,7 @@ if (!window.checkpointsManager) {
             // HuggingFace Integration
             async checkHuggingFaceAuth() {
                 try {
-                    const response = await ApiClient.fetch('/api/publishing/token/validate');
+                    const response = await ApiClient.fetch('/publishing/token/validate');
                     if (response.ok) {
                         const data = await response.json();
                         this.hfAuthenticated = data.valid === true;
@@ -714,7 +714,7 @@ if (!window.checkpointsManager) {
             async loadUploadConfig() {
                 try {
                     const environment = await this.ensureEnvironment();
-                    const response = await fetch(`/api/configs/${environment}`);
+                    const response = await ApiClient.fetch(`/configs/${environment}`);
                     if (response.ok) {
                         const data = await response.json();
                         const config = data.config || data;
@@ -753,7 +753,7 @@ if (!window.checkpointsManager) {
                     // Get the callback URL for webhook notifications
                     const callbackUrl = `${window.location.origin}/callback`;
 
-                    const response = await fetch(`/api/checkpoints/${checkpoint.name}/upload`, {
+                    const response = await ApiClient.fetch(`/checkpoints/${checkpoint.name}/upload`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -793,7 +793,7 @@ if (!window.checkpointsManager) {
             async monitorUpload(taskId) {
                 const checkStatus = async () => {
                     try {
-                        const response = await fetch(`/api/checkpoints/upload/${taskId}/status`);
+                        const response = await ApiClient.fetch(`/checkpoints/upload/${taskId}/status`);
                         if (!response.ok) {
                             throw new Error('Failed to get upload status');
                         }
@@ -842,7 +842,7 @@ if (!window.checkpointsManager) {
                     // Get the callback URL for webhook notifications
                     const callbackUrl = `${window.location.origin}/callback`;
 
-                    const response = await ApiClient.fetch('/api/checkpoints/upload', {
+                    const response = await ApiClient.fetch('/checkpoints/upload', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({

@@ -78,3 +78,4 @@ test-folder/
 node_modules
 package-lock.json
 **/config
+proxy_fix_implementation.md

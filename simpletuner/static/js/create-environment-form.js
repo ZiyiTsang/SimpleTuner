@@ -3,7 +3,7 @@
  * Provides the same behaviour for the environments tab modal and onboarding flow.
  */
 (function (global) {
-    const noop = () => {};
+    const noop = () => { };
     const sanitizeConfigName =
         global.sanitizeConfigName ||
         function (name) {
@@ -350,7 +350,7 @@
                 }
                 console.info("[EnvForm] ensureModelFamilies fetching");
                 try {
-                    const response = await this.apiFetch("/api/models");
+                    const response = await this.apiFetch("/models");
                     console.info("[EnvForm] /api/models response", response);
                     if (response.ok) {
                         const data = await response.json();
@@ -377,7 +377,7 @@
                     return;
                 }
                 try {
-                    const response = await this.apiFetch(`/api/models/${family}/flavours`);
+                    const response = await this.apiFetch(`/models/${family}/flavours`);
                     console.info("[EnvForm] /api/models/", family, "response", response);
                     if (response.ok) {
                         const data = await response.json();
@@ -398,7 +398,7 @@
                     return;
                 }
                 try {
-                    const response = await this.apiFetch("/api/configs/examples");
+                    const response = await this.apiFetch("/configs/examples");
                     if (response.ok) {
                         const data = await response.json();
                         this.examples = Array.isArray(data.examples) ? data.examples : [];
@@ -425,7 +425,7 @@
 
             async generateProjectName() {
                 try {
-                    const response = await this.apiFetch("/api/configs/project-name");
+                    const response = await this.apiFetch("/configs/project-name");
                     if (!response.ok) {
                         throw new Error("Failed to generate name");
                     }
@@ -495,7 +495,7 @@
                 this.error = "";
                 this.$dispatch("environment-submit-start", { payload });
                 try {
-                    const response = await this.apiFetch("/api/configs/environments", {
+                    const response = await this.apiFetch("/configs/environments", {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json",

@@ -124,7 +124,7 @@ function resetEventList() {
 // Function to fetch and display broadcast events
 async function fetchBroadcastEvents() {
     try {
-        const response = await fetch(`${window.ServerConfig.callbackUrl}/broadcast?last_event_index=${lastEventIndex}`);
+        const response = await ApiClient.fetch(`/broadcast?last_event_index=${lastEventIndex}`, {}, { forceCallback: true });
         const data = await response.json();
 
         // Check if there's an "exit" event in the data
@@ -238,7 +238,7 @@ if (legacyRunBtn && !buttonUsesHTMX(legacyRunBtn)) {
         const payload = getPayload();
         if (!payload) return;
 
-        ApiClient.fetch('/api/training/start', {
+        ApiClient.fetch('/training/start', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -271,13 +271,13 @@ if (legacyCancelBtn && !buttonUsesHTMX(legacyCancelBtn)) {
         const payload = { job_id: document.getElementById('job_id').value };
         showToast('Cancelling may take a while.', 'success');
 
-        fetch(`${window.location.origin}/training/cancel`, {
+        ApiClient.fetch('/training/cancel', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify(payload),
-        })
+        }, { forceApi: true })
             .then(response => response.json())
             .then(data => {
                 if (data.detail) {

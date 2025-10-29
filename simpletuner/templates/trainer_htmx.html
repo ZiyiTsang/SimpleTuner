@@ -5,14 +5,14 @@
 
 {% block extra_css %}
 <!-- Load design tokens first -->
-<link href="/static/css/tokens.css" rel="stylesheet">
+<link href="{{ base_url }}/static/css/tokens.css" rel="stylesheet">
 <!-- Load existing trainer CSS for consistency -->
-<link href="/static/css/trainer.css" rel="stylesheet">
-<link href="/static/css/dataloader-builder.css" rel="stylesheet">
-<link href="/static/css/trainer-core.css" rel="stylesheet">
-<link href="/static/css/tab-navigation.css" rel="stylesheet">
+<link href="{{ base_url }}/static/css/trainer.css" rel="stylesheet">
+<link href="{{ base_url }}/static/css/dataloader-builder.css" rel="stylesheet">
+<link href="{{ base_url }}/static/css/trainer-core.css" rel="stylesheet">
+<link href="{{ base_url }}/static/css/tab-navigation.css" rel="stylesheet">
 <!-- HTMX loading states -->
-<link href="/static/css/htmx-loading-states.css" rel="stylesheet">
+<link href="{{ base_url }}/static/css/htmx-loading-states.css" rel="stylesheet">
 {% endblock %}
 
 {% block body %}
@@ -5367,19 +5367,19 @@ function trainerComponent() {
 
 {% block extra_js %}
 <!-- Load dataloader builder scripts -->
-<script src="/static/js/server-config.js"></script>
-<script src="/static/js/utils/api.js"></script>
-<script src="/static/js/dataloader-builder.js"></script>
-<script src="/static/js/dataloader-htmx-init.js"></script>
-<script src="/static/js/event-handler.js"></script>
-<script src="/static/js/services/dependency-manager.js"></script>
+<script src="{{ base_url }}/static/js/server-config.js"></script>
+<script src="{{ base_url }}/static/js/utils/api.js"></script>
+<script src="{{ base_url }}/static/js/dataloader-builder.js"></script>
+<script src="{{ base_url }}/static/js/dataloader-htmx-init.js"></script>
+<script src="{{ base_url }}/static/js/event-handler.js"></script>
+<script src="{{ base_url }}/static/js/services/dependency-manager.js"></script>
 
 <!-- Load event lightbox for event images -->
-<link href="/static/css/event_lightbox.css" rel="stylesheet">
-<script src="/static/js/modules/event_lightbox.js"></script>
+<link href="{{ base_url }}/static/css/event_lightbox.css" rel="stylesheet">
+<script src="{{ base_url }}/static/js/modules/event_lightbox.js"></script>
 
 <!-- Load event renderer for SSE event display -->
-<script src="/static/js/modules/event-renderer.js"></script>
+<script src="{{ base_url }}/static/js/modules/event-renderer.js"></script>
 
 <script>
 // Enhanced HTMX configuration for trainer
@@ -5582,18 +5582,18 @@ window.showToast = window.showToast || function(message, type) {
     </div>
 </div>
 
-<script src="/static/js/modules/tab-navigation.js" defer></script>
+<script src="{{ base_url }}/static/js/modules/tab-navigation.js" defer></script>
 
 <!-- Load search module for sidebar search functionality -->
-<script src="/static/js/modules/search.js"></script>
+<script src="{{ base_url }}/static/js/modules/search.js"></script>
 
 <!-- Load tab-specific modules early so they're available when tabs load -->
-<script src="/static/js/modules/publishing.js"></script>
-<script src="/static/js/modules/webhooks.js"></script>
-<script src="/static/js/modules/checkpoints.js"></script>
+<script src="{{ base_url }}/static/js/modules/publishing.js"></script>
+<script src="{{ base_url }}/static/js/modules/webhooks.js"></script>
+<script src="{{ base_url }}/static/js/modules/checkpoints.js"></script>
 
 <!-- Module loader for browser compatibility -->
-<script src="/static/js/module-loader.js"></script>
+<script src="{{ base_url }}/static/js/module-loader.js"></script>
 
 <!-- Load modular JavaScript with fallback support -->
 <script>
@@ -5601,7 +5601,7 @@ window.showToast = window.showToast || function(message, type) {
 if (window.shouldUseModules && window.shouldUseModules()) {
     // Modern browsers: load trainer.js (IIFE that creates TrainerUI)
     var script = document.createElement('script');
-    script.src = '/static/js/trainer.js';
+    script.src = '{{ base_url }}/static/js/trainer.js';
     script.onload = function() {
         if (window.TrainerUI) {
             window.trainer = new TrainerUI();
@@ -5610,7 +5610,7 @@ if (window.shouldUseModules && window.shouldUseModules()) {
     document.head.appendChild(script);
 } else {
     // Older browsers: use compatibility version
-    window.loadModule('/static/js/trainer-main-compat.js').then(function(module) {
+    window.loadModule('{{ base_url }}/static/js/trainer-main-compat.js').then(function(module) {
         window.trainer = new module.TrainerMain();
         window.trainer.initialize();
     }).catch(function(error) {

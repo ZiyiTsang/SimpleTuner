@@ -132,29 +132,29 @@ function trainingWizardComponent() {
                 label: 'Model',
                 title: 'Training Configuration Wizard - Step 1: Model Family',
                 required: true,
-                validate: function() { return this.answers.model_family !== null; }
+                validate: function () { return this.answers.model_family !== null; }
             },
             {
                 id: 'model-flavour',
                 label: 'Variant',
                 title: 'Training Configuration Wizard - Step 2: Model Variant',
                 required: false,
-                condition: function() { return this.needsModelFlavour(); },
-                validate: function() { return !this.needsModelFlavour() || this.answers.model_flavour !== null; }
+                condition: function () { return this.needsModelFlavour(); },
+                validate: function () { return !this.needsModelFlavour() || this.answers.model_flavour !== null; }
             },
             {
                 id: 'training-type',
                 label: 'Type',
                 title: 'Training Configuration Wizard - Step 3: Training Type',
                 required: true,
-                validate: function() { return this.answers.model_type !== null; }
+                validate: function () { return this.answers.model_type !== null; }
             },
             {
                 id: 'training-duration',
                 label: 'Duration',
                 title: 'Training Configuration Wizard - Step 4: Training Duration',
                 required: true,
-                validate: function() {
+                validate: function () {
                     const mode = this.answers.training_length_mode;
                     if (mode === 'epochs') {
                         const epochs = Number(this.answers.num_train_epochs);
@@ -172,7 +172,7 @@ function trainingWizardComponent() {
                 label: 'Publishing',
                 title: 'Training Configuration Wizard - Step 5: Publishing',
                 required: false,
-                validate: function() {
+                validate: function () {
                     if (this.answers.push_to_hub) {
                         return typeof this.answers.hub_model_id === 'string' && this.answers.hub_model_id.trim().length > 0;
                     }
@@ -184,7 +184,7 @@ function trainingWizardComponent() {
                 label: 'Checkpoints',
                 title: 'Training Configuration Wizard - Step 6: Checkpoints',
                 required: true,
-                validate: function() {
+                validate: function () {
                     const stepRaw = this.answers.checkpoint_step_interval;
                     const epochRaw = this.answers.checkpoint_epoch_interval;
 
@@ -203,7 +203,7 @@ function trainingWizardComponent() {
                 label: 'Validations',
                 title: 'Training Configuration Wizard - Step 7: Validations',
                 required: true,
-                validate: function() {
+                validate: function () {
                     if (this.answers.enable_validations === null) {
                         return false;
                     }
@@ -224,21 +224,21 @@ function trainingWizardComponent() {
                 label: 'Logging',
                 title: 'Training Configuration Wizard - Step 8: Logging',
                 required: false,
-                validate: function() { return true; }
+                validate: function () { return true; }
             },
             {
                 id: 'dataset',
                 label: 'Dataset',
                 title: 'Training Configuration Wizard - Step 9: Dataset',
                 required: true,
-                validate: function() { return this.hasExistingDataset || this.datasetConfigured; }
+                validate: function () { return this.hasExistingDataset || this.datasetConfigured; }
             },
             {
                 id: 'advanced',
                 label: 'Advanced',
                 title: 'Training Configuration Wizard - Step 10: Advanced Settings',
                 required: false,
-                validate: function() {
+                validate: function () {
                     if (this.advancedMode === 'manual') {
                         const lrValid = typeof this.answers.learning_rate === 'number' && this.answers.learning_rate > 0;
                         const optimizerValid = Boolean(this.answers.optimizer);
@@ -254,7 +254,7 @@ function trainingWizardComponent() {
                 label: 'Review',
                 title: 'Training Configuration Wizard - Review Configuration',
                 required: true,
-                validate: function() { return true; }
+                validate: function () { return true; }
             }
         ],
 
@@ -523,7 +523,7 @@ function trainingWizardComponent() {
 
         async checkDataset() {
             try {
-                const response = await ApiClient.fetch('/api/datasets/plan');
+                const response = await ApiClient.fetch('/datasets/plan');
                 if (response.ok) {
                     const data = await response.json();
                     this.hasExistingDataset = (data.datasets && data.datasets.length > 0);
@@ -583,7 +583,7 @@ function trainingWizardComponent() {
             this.modelsError = null;
 
             try {
-                const response = await ApiClient.fetch('/api/models/wizard');
+                const response = await ApiClient.fetch('/models/wizard');
                 if (!response.ok) {
                     throw new Error(`Failed to load models: ${response.statusText}`);
                 }
@@ -702,7 +702,7 @@ function trainingWizardComponent() {
                 console.log('[TRAINING WIZARD] Committing pending dataset plan:', this.pendingDatasetPlan);
 
                 try {
-                    const response = await ApiClient.fetch('/api/datasets/plan', {
+                    const response = await ApiClient.fetch('/datasets/plan', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
@@ -806,7 +806,7 @@ function trainingWizardComponent() {
             console.log('[TRAINING WIZARD] Loading logging providers from field registry');
 
             try {
-                const response = await ApiClient.fetch('/api/fields/field/report_to');
+                const response = await ApiClient.fetch('/fields/field/report_to');
                 if (!response.ok) {
                     console.warn('[TRAINING WIZARD] Could not load logging providers');
                     // Fallback to hardcoded options
@@ -852,8 +852,8 @@ function trainingWizardComponent() {
 
             try {
                 const [projectResponse, runResponse] = await Promise.all([
-                    ApiClient.fetch('/api/fields/field/tracker_project_name'),
-                    ApiClient.fetch('/api/fields/field/tracker_run_name')
+                    ApiClient.fetch('/fields/field/tracker_project_name'),
+                    ApiClient.fetch('/fields/field/tracker_run_name')
                 ]);
 
                 if (projectResponse.ok) {
@@ -887,7 +887,7 @@ function trainingWizardComponent() {
             }
 
             try {
-                const response = await fetch(`/api/models/${modelFamily}`);
+                const response = await ApiClient.fetch(`/models/${modelFamily}`);
                 if (!response.ok) {
                     throw new Error(`Failed to load model details for ${modelFamily}`);
                 }
@@ -923,7 +923,7 @@ function trainingWizardComponent() {
                 }
 
                 const [fieldsResponse, modelDetails] = await Promise.all([
-                    fetch(`/api/fields/tabs/model?${params.toString()}`),
+                    ApiClient.fetch(`/fields/tabs/model?${params.toString()}`),
                     this.fetchModelDetails(this.answers.model_family)
                 ]);
 
@@ -1106,7 +1106,7 @@ function trainingWizardComponent() {
             console.log('[TRAINING WIZARD] Loading optimizer choices from field registry');
 
             try {
-                const response = await ApiClient.fetch('/api/fields/field/optimizer');
+                const response = await ApiClient.fetch('/fields/field/optimizer');
                 if (!response.ok) {
                     throw new Error(`Failed to load optimizer field: ${response.statusText}`);
                 }
@@ -1146,7 +1146,7 @@ function trainingWizardComponent() {
 
             try {
                 // Fetch model details to get default flavour
-                const detailsResponse = await fetch(`/api/models/${modelFamily}`);
+                const detailsResponse = await ApiClient.fetch(`/models/${modelFamily}`);
                 let defaultFlavour = null;
 
                 if (detailsResponse.ok) {
@@ -1156,7 +1156,7 @@ function trainingWizardComponent() {
                 }
 
                 // Fetch available flavours
-                const response = await fetch(`/api/models/${modelFamily}/flavours`);
+                const response = await ApiClient.fetch(`/models/${modelFamily}/flavours`);
                 if (!response.ok) {
                     console.warn(`[TRAINING WIZARD] No flavours available for ${modelFamily}`);
                     this.modelFlavours = [];

@@ -1,5 +1,5 @@
 // Dataset Creation Wizard Component
-(function() {
+(function () {
     'use strict';
 
     console.log('[WIZARD] dataset-wizard.js loading...');
@@ -18,7 +18,7 @@
         { value: 'superresolution', label: 'Super Resolution', description: 'Reconstructs high-res conditioning frames.' },
     ];
 
-    window.datasetWizardComponent = function() {
+    window.datasetWizardComponent = function () {
         console.log('[WIZARD] datasetWizardComponent function called (Alpine initializing component)');
         return {
             // Modal state
@@ -216,7 +216,7 @@
 
             async loadExistingConfig() {
                 try {
-                    const response = await ApiClient.fetch('/api/datasets/plan');
+                    const response = await ApiClient.fetch('/datasets/plan');
                     if (response.ok) {
                         const data = await response.json();
                         const rawDatasets = data.datasets || [];
@@ -243,7 +243,7 @@
 
             async loadBlueprints() {
                 try {
-                    const response = await ApiClient.fetch('/api/datasets/blueprints');
+                    const response = await ApiClient.fetch('/datasets/blueprints');
                     const data = await response.json();
                     this.blueprints = data.blueprints || [];
                     console.log('[WIZARD] Loaded blueprints:', this.blueprints.length);
@@ -781,7 +781,7 @@
                     }
 
                     // Normal mode: save immediately
-                    const response = await ApiClient.fetch('/api/datasets/plan', {
+                    const response = await ApiClient.fetch('/datasets/plan', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
@@ -1066,10 +1066,10 @@
 
                 try {
                     const url = path
-                        ? `/api/datasets/browse?path=${encodeURIComponent(path)}`
-                        : '/api/datasets/browse';
+                        ? `/datasets/browse?path=${encodeURIComponent(path)}`
+                        : '/datasets/browse';
 
-                    const response = await fetch(url);
+                    const response = await ApiClient.fetch(url);
                     if (!response.ok) {
                         const error = await response.json();
 
@@ -1106,7 +1106,7 @@
 
                 // Check if this directory has dataset metadata
                 try {
-                    const response = await fetch(`/api/datasets/detect?path=${encodeURIComponent(path)}`);
+                    const response = await ApiClient.fetch(`/datasets/detect?path=${encodeURIComponent(path)}`);
                     if (response.ok) {
                         this.selectedDirInfo = await response.json();
                     }
@@ -1284,7 +1284,7 @@
                 try {
                     // Use the proper endpoint to create a dataloader for the environment
                     // This creates an EMPTY multidatabackend config (no default datasets)
-                    const response = await fetch(`/api/configs/${encodeURIComponent(environmentName)}/dataloader`, {
+                    const response = await ApiClient.fetch(`/configs/${encodeURIComponent(environmentName)}/dataloader`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',

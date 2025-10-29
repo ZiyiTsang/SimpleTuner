@@ -3,10 +3,10 @@
  * Handles connection lifecycle, retries, and message routing
  */
 
-(function(window) {
+(function (window) {
     'use strict';
 
-    var SSEManager = (function() {
+    var SSEManager = (function () {
         // Private variables
         var instance = null;
         var eventSource = null;
@@ -17,7 +17,7 @@
         var maxRetryDelay = 30000; // 30 seconds
         var heartbeatInterval = null;
         var lastHeartbeat = null;
-        var connectionUrl = '/api/events';
+        var connectionUrl = null; // Will be set dynamically using ApiClient
         var listeners = {};
         var CALLBACK_EVENT_TYPES = ['progress', 'validation', 'job', 'status', 'alert', 'checkpoint', 'metric', 'debug'];
         var connectionState = 'disconnected'; // disconnected, connecting, connected
@@ -62,7 +62,7 @@
          */
         function notifyListeners(eventType, data) {
             if (listeners[eventType]) {
-                listeners[eventType].forEach(function(callback) {
+                listeners[eventType].forEach(function (callback) {
                     try {
                         callback(data);
                     } catch (error) {
@@ -236,7 +236,7 @@
                 case 'progress': {
                     var progressMessages = transformProgressPayload(payload);
                     if (Array.isArray(progressMessages)) {
-                        progressMessages.forEach(function(msg) {
+                        progressMessages.forEach(function (msg) {
                             if (msg) {
                                 handleMessage(msg);
                             }
@@ -325,7 +325,7 @@
             clearInterval(heartbeatInterval);
             lastHeartbeat = Date.now();
 
-            heartbeatInterval = setInterval(function() {
+            heartbeatInterval = setInterval(function () {
                 var timeSinceLastHeartbeat = Date.now() - lastHeartbeat;
 
                 // If no heartbeat for 60 seconds, consider connection dead
@@ -353,7 +353,7 @@
                 eventSource.removeEventListener('connection', connectionListener);
 
                 // Remove callback event listeners
-                CALLBACK_EVENT_TYPES.forEach(function(category) {
+                CALLBACK_EVENT_TYPES.forEach(function (category) {
                     var listener = callbackEventListeners[category];
                     if (listener) {
                         eventSource.removeEventListener('callback:' + category, listener);
@@ -389,10 +389,22 @@
             var delay = calculateRetryDelay();
             updateConnectionStatus('reconnecting', 'Reconnecting in ' + Math.round(delay / 1000) + 's...');
 
-            reconnectTimeout = setTimeout(function() {
+            reconnectTimeout = setTimeout(function () {
                 retryCount++;
                 connect();
             }, delay);
+        }
+
+        /**
+         * Build SSE connection URL dynamically
+         */
+        function buildConnectionUrl() {
+            // Use ApiClient.resolve if available, otherwise fallback to relative path
+            if (typeof window.ApiClient !== 'undefined' && window.ApiClient.resolve) {
+                return window.ApiClient.resolve('/events');
+            }
+            // Fallback for compatibility - use relative path instead of absolute
+            return '/events';
         }
 
         /**
@@ -405,16 +417,18 @@
 
             try {
                 updateConnectionStatus('connecting', 'Connecting...');
+                // Build connection URL dynamically
+                connectionUrl = buildConnectionUrl();
                 eventSource = new EventSource(connectionUrl);
 
-                eventSource.onopen = function() {
+                eventSource.onopen = function () {
                     console.log('SSE connection established');
                     retryCount = 0; // Reset retry count on successful connection
                     updateConnectionStatus('connected', 'Connected');
                     setupHeartbeat();
                 };
 
-                eventSource.onmessage = function(event) {
+                eventSource.onmessage = function (event) {
                     lastHeartbeat = Date.now();
 
                     try {
@@ -425,7 +439,7 @@
                     }
                 };
 
-                eventSource.onerror = function(error) {
+                eventSource.onerror = function (error) {
                     console.error('SSE connection error:', error);
                     updateConnectionStatus('disconnected', 'Connection lost');
 
@@ -436,13 +450,13 @@
                 };
 
                 // Handle specific event types - store listener references for cleanup
-                heartbeatListener = function(event) {
+                heartbeatListener = function (event) {
                     lastHeartbeat = Date.now();
                     notifyListeners('heartbeat', { timestamp: lastHeartbeat });
                 };
                 eventSource.addEventListener('heartbeat', heartbeatListener);
 
-                trainingProgressListener = function(event) {
+                trainingProgressListener = function (event) {
                     lastHeartbeat = Date.now();
                     try {
                         var data = JSON.parse(event.data);
@@ -453,7 +467,7 @@
                 };
                 eventSource.addEventListener('training.progress', trainingProgressListener);
 
-                validationCompleteListener = function(event) {
+                validationCompleteListener = function (event) {
                     lastHeartbeat = Date.now();
                     try {
                         var data = JSON.parse(event.data);
@@ -464,7 +478,7 @@
                 };
                 eventSource.addEventListener('validation_complete', validationCompleteListener);
 
-                lifecycleStageListener = function(event) {
+                lifecycleStageListener = function (event) {
                     lastHeartbeat = Date.now();
                     try {
                         var data = JSON.parse(event.data);
@@ -476,7 +490,7 @@
                 };
                 eventSource.addEventListener('lifecycle.stage', lifecycleStageListener);
 
-                trainingStatusListener = function(event) {
+                trainingStatusListener = function (event) {
                     lastHeartbeat = Date.now();
                     try {
                         var data = JSON.parse(event.data);
@@ -487,7 +501,7 @@
                 };
                 eventSource.addEventListener('training.status', trainingStatusListener);
 
-                connectionListener = function(event) {
+                connectionListener = function (event) {
                     lastHeartbeat = Date.now();
                     try {
                         var data = JSON.parse(event.data);
@@ -498,8 +512,8 @@
                 };
                 eventSource.addEventListener('connection', connectionListener);
 
-                CALLBACK_EVENT_TYPES.forEach(function(category) {
-                    var listener = function(event) {
+                CALLBACK_EVENT_TYPES.forEach(function (category) {
+                    var listener = function (event) {
                         lastHeartbeat = Date.now();
                         try {
                             var data = JSON.parse(event.data);
@@ -570,7 +584,7 @@
             /**
              * Initialize SSE connection
              */
-            init: function(config) {
+            init: function (config) {
                 if (instance) {
                     return instance;
                 }
@@ -578,7 +592,12 @@
                 config = config || {};
 
                 // Apply configuration
-                if (config.url) connectionUrl = config.url;
+                if (config.url) {
+                    connectionUrl = config.url;
+                } else {
+                    // Build connection URL dynamically if not provided
+                    connectionUrl = buildConnectionUrl();
+                }
                 if (config.maxRetries) maxRetries = config.maxRetries;
                 if (config.baseRetryDelay) baseRetryDelay = config.baseRetryDelay;
                 if (config.maxRetryDelay) maxRetryDelay = config.maxRetryDelay;
@@ -591,7 +610,7 @@
                 }
 
                 // Set up page unload handler
-                window.addEventListener('beforeunload', function() {
+                window.addEventListener('beforeunload', function () {
                     instance.disconnect();
                     instance.clearAllListeners();
                 });
@@ -611,7 +630,7 @@
             /**
              * Manually disconnect
              */
-            disconnect: function() {
+            disconnect: function () {
                 cleanup();
                 updateConnectionStatus('disconnected', 'Manually disconnected');
             },
@@ -619,7 +638,7 @@
             /**
              * Remove all listeners for a specific event type
              */
-            removeAllListeners: function(eventType) {
+            removeAllListeners: function (eventType) {
                 if (listeners[eventType]) {
                     delete listeners[eventType];
                 }
@@ -628,14 +647,14 @@
             /**
              * Clear all registered listeners
              */
-            clearAllListeners: function() {
+            clearAllListeners: function () {
                 listeners = {};
             },
 
             /**
              * Destroy the SSE manager instance completely
              */
-            destroy: function() {
+            destroy: function () {
                 cleanup();
                 this.clearAllListeners();
                 instance = null;
@@ -645,7 +664,7 @@
             /**
              * Add event listener
              */
-            addEventListener: function(eventType, callback) {
+            addEventListener: function (eventType, callback) {
                 if (!listeners[eventType]) {
                     listeners[eventType] = [];
                 }
@@ -655,9 +674,9 @@
             /**
              * Remove event listener
              */
-            removeEventListener: function(eventType, callback) {
+            removeEventListener: function (eventType, callback) {
                 if (listeners[eventType]) {
-                    listeners[eventType] = listeners[eventType].filter(function(cb) {
+                    listeners[eventType] = listeners[eventType].filter(function (cb) {
                         return cb !== callback;
                     });
                 }
@@ -666,7 +685,7 @@
             /**
              * Get connection state
              */
-            getState: function() {
+            getState: function () {
                 return {
                     connectionState: connectionState,
                     retryCount: retryCount,
@@ -677,14 +696,14 @@
             /**
              * Reset retry count
              */
-            resetRetries: function() {
+            resetRetries: function () {
                 retryCount = 0;
             },
 
             /**
              * Expose progress normalizer for external consumers
              */
-            normalizeProgressPayload: function(payload) {
+            normalizeProgressPayload: function (payload) {
                 var result = transformProgressPayload(payload);
                 if (!result || result.type === 'lifecycle.stage') {
                     return null;

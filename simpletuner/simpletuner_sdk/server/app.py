@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from enum import Enum
 from typing import Optional
 
-from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -105,6 +105,7 @@ def create_app(
     static_dir: Optional[str] = None,
     template_dir: Optional[str] = None,
     ssl_no_verify: bool = False,
+    root_path: Optional[str] = None,
 ) -> FastAPI:
     """
     Create a FastAPI application with the specified mode.
@@ -121,7 +122,7 @@ def create_app(
 
     # Create base app with lifespan handler
     title = f"SimpleTuner {mode.value.capitalize()} Server"
-    app = FastAPI(title=title, lifespan=lifespan)
+    app = FastAPI(title=title, lifespan=lifespan, root_path=root_path)
 
     # Store SSL configuration in app state
     app.state.ssl_no_verify = ssl_no_verify
@@ -174,6 +175,10 @@ def create_app(
             headers={"Cache-Control": "public, max-age=31536000, immutable"},
         )
 
+    # Add proxy middleware for reverse proxy support
+    from .middleware.proxy_middleware import ProxyMiddleware
+    app.add_middleware(ProxyMiddleware)
+
     # Add routes based on mode
     if mode in (ServerMode.TRAINER, ServerMode.UNIFIED):
         _add_trainer_routes(app)
@@ -191,9 +196,11 @@ def create_app(
         from fastapi.responses import RedirectResponse
 
         @app.get("/")
-        async def root():
-            """Redirect to web interface"""
-            return RedirectResponse(url="/web/trainer")
+        async def root(request: Request):
+            """Redirect to web interface with proxy path preservation."""
+            # Use request.url_for to generate correct URL with proxy path
+            trainer_url = request.url_for("trainer_page")
+            return RedirectResponse(url=trainer_url)
 
     return app
 

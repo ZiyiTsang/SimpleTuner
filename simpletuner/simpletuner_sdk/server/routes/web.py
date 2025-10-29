@@ -62,6 +62,7 @@ async def trainer_page(
         "active_config": active_config,
         "webui_theme": resolved_defaults.get("theme", "dark"),
         "webui_defaults": resolved_defaults,
+        "base_url": getattr(request.state, "base_url", str(request.base_url)),
     }
 
     return templates.TemplateResponse(request=request, name="trainer_htmx.html", context=context)

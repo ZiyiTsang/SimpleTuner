@@ -66,7 +66,7 @@ export class TrainerValidation {
     async validateConfig(form) {
         const payload = this.getPayload(form);
 
-        const response = await fetch(`${this.apiBaseUrl}/training/validate`, {
+        const response = await ApiClient.fetch('/training/validate', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -74,7 +74,7 @@ export class TrainerValidation {
             },
             credentials: 'include',
             body: JSON.stringify(payload)
-        });
+        }, { forceApi: true });
 
         if (!response.ok) {
             throw new Error(`Validation failed: ${response.status}`);

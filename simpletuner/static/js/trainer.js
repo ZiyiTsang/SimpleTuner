@@ -222,7 +222,7 @@
         }
 
         try {
-            const response = await fetch(`${this.callbackUrl}/api/models/${modelFamily}`);
+            const response = await ApiClient.fetch(`/models/${modelFamily}`);
             if (!response.ok) {
                 throw new Error(`Failed to fetch details for ${modelFamily}`);
             }
@@ -378,7 +378,7 @@
         }
 
         try {
-            const response = await fetch(`${this.callbackUrl}/api/models/${modelFamily}/flavours`);
+            const response = await ApiClient.fetch(`/models/${modelFamily}/flavours`);
             if (!response.ok) {
                 throw new Error(`Failed to fetch flavours for ${modelFamily}`);
             }
@@ -771,8 +771,8 @@
         }
 
         try {
-            const endpoint = `${this.apiBaseUrl}/api/models/${encodeURIComponent(modelFamily)}/fsdp-blocks`;
-            const response = await fetch(endpoint, {
+            const endpoint = `/models/${encodeURIComponent(modelFamily)}/fsdp-blocks`;
+            const response = await ApiClient.fetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -982,7 +982,7 @@
         this.setButtonLoading(button, true, 'Validating...');
 
         try {
-            const response = await this.apiCall('/api/training/validate', payload);
+            const response = await this.apiCall('/training/validate', payload);
             // Validation completed successfully
             this.handleResponse(response, 'Configuration validated successfully!');
         } catch (error) {
@@ -1001,7 +1001,7 @@
         this.setButtonLoading(button, true, 'Starting...');
 
         try {
-            const response = await this.apiCall('/api/training/start', payload);
+            const response = await this.apiCall('/training/start', payload);
             this.handleResponse(response, 'Training started successfully!');
             // Reset event list when starting new training
             if (window.eventHandler) {
@@ -1038,7 +1038,7 @@
         this.showToast('Cancelling training... This may take a moment.', 'info');
 
         try {
-            const response = await this.apiCall('/api/training/cancel', { job_id: jobId });
+            const response = await this.apiCall('/training/cancel', { job_id: jobId });
             this.handleResponse(response, 'Training cancelled successfully!');
         } catch (error) {
             this.showError(error.message);
@@ -1142,7 +1142,7 @@
 
     async fetchCurrentJobId() {
         try {
-            const response = await fetch(`${this.apiBaseUrl}/api/training/status`, {
+            const response = await ApiClient.fetch(`/training/status`, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json'
@@ -1163,7 +1163,7 @@
     }
 
     async apiCall(endpoint, data) {
-        const response = await fetch(`${this.apiBaseUrl}${endpoint}`, {
+        const response = await ApiClient.fetch(endpoint, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

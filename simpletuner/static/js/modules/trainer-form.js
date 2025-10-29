@@ -84,7 +84,7 @@ export class TrainerForm {
 
         try {
             // Fetch flavours
-            const response = await fetch(`/api/models/${modelFamily}/flavours`);
+            const response = await ApiClient.fetch(`/models/${modelFamily}/flavours`);
             const data = await response.json();
 
             // Update dropdown
@@ -106,7 +106,7 @@ export class TrainerForm {
                     targetValue = flavourSelect.value;
                 } else {
                     try {
-                        const detailsResponse = await fetch(`/api/models/${modelFamily}`);
+                        const detailsResponse = await ApiClient.fetch(`/models/${modelFamily}`);
                         if (detailsResponse.ok) {
                             const details = await detailsResponse.json();
                             const defaultFlavour = details?.default_flavour || details?.attributes?.default_model_flavour;

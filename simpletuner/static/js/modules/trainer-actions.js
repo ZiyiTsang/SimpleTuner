@@ -13,7 +13,7 @@ export class TrainerActions {
      * Start training
      */
     async startTraining(payload) {
-        const response = await fetch(`${this.apiBaseUrl}/training/start`, {
+        const response = await ApiClient.fetch('/training/start', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -21,7 +21,7 @@ export class TrainerActions {
             },
             credentials: 'include',
             body: JSON.stringify(payload)
-        });
+        }, { forceApi: true });
 
         if (!response.ok) {
             throw new Error(`Failed to start training: ${response.status}`);
@@ -44,11 +44,11 @@ export class TrainerActions {
         const formData = new FormData();
         formData.append('job_id', jobId);
 
-        const response = await fetch(`${this.apiBaseUrl}/training/cancel`, {
+        const response = await ApiClient.fetch('/training/cancel', {
             method: 'POST',
             credentials: 'include',
             body: formData
-        });
+        }, { forceApi: true });
 
         if (!response.ok) {
             throw new Error(`Failed to cancel training: ${response.status}`);
@@ -68,10 +68,10 @@ export class TrainerActions {
      * Get training status
      */
     async getTrainingStatus() {
-        const response = await fetch(`${this.apiBaseUrl}/training/status`, {
+        const response = await ApiClient.fetch('/training/status', {
             method: 'GET',
             credentials: 'include'
-        });
+        }, { forceApi: true });
 
         if (!response.ok) {
             throw new Error(`Failed to get status: ${response.status}`);

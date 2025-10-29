@@ -144,13 +144,27 @@ class EventHandler {
 
     async checkServerHealth() {
         try {
-            const response = await ApiClient.fetch("/health", {
+            // Use direct fetch for health check to avoid ApiClient's automatic /api prefixing
+            let healthUrl;
+            const apiBaseUrl = window.SIMPLETUNER_CONFIG?.api_base || window.location.origin;
+            
+            if (apiBaseUrl.endsWith('/api')) {
+                // If apiBaseUrl ends with /api, use /health directly (not /api/health)
+                healthUrl = apiBaseUrl.replace(/\/api$/, '') + '/health';
+            } else if (apiBaseUrl.endsWith('/api/')) {
+                // If apiBaseUrl ends with /api/, use health directly (not /api/health)
+                healthUrl = apiBaseUrl.replace(/\/api\/$/, '') + 'health';
+            } else {
+                healthUrl = apiBaseUrl + '/health';
+            }
+            
+            const response = await fetch(healthUrl, {
                 method: 'GET',
                 mode: 'cors',
                 credentials: 'omit',
                 cache: 'no-cache',
                 signal: AbortSignal.timeout(2000) // 2 second timeout
-            }, { forceApi: true });
+            });
             return response.ok;
         } catch (error) {
             return false;
@@ -174,7 +188,7 @@ class EventHandler {
 
             // Fall back to polling if WebSocket not available
             const response = await ApiClient.fetch(
-                `/api/training/events?since_index=${this.lastEventIndex}`,
+                `/training/events?since_index=${this.lastEventIndex}`,
                 {
                     signal: this.abortController.signal,
                     headers: {
@@ -707,7 +721,7 @@ class EventHandler {
         if (!value) return 'Progress';
         return String(value)
             .replace(/[_-]+/g, ' ')
-            .replace(/\b\w/g, function(chr) {
+            .replace(/\b\w/g, function (chr) {
                 return chr.toUpperCase();
             });
     }
@@ -985,7 +999,7 @@ class EventHandler {
                 clearTimeout(this.pollTimeout);
                 this.pollTimeout = null;
             }
-            const wsUrl = ApiClient.resolveWebsocket('/api/training/events/stream', { forceCallback: true });
+            const wsUrl = ApiClient.resolveWebsocket('/training/events/stream', { forceCallback: true });
             this.websocket = new WebSocket(wsUrl);
 
             this.websocket.onopen = () => {

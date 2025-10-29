@@ -125,7 +125,7 @@ function searchComponent() {
 
             try {
                 console.log('🔍 SEARCHING FOR:', this.query);
-                const response = await fetch(`/web/trainer/search?q=${encodeURIComponent(this.query)}&limit=10`);
+                const response = await ApiClient.fetch(`/web/trainer/search?q=${encodeURIComponent(this.query)}&limit=10`);
 
                 if (!response.ok) {
                     throw new Error('Search failed');
