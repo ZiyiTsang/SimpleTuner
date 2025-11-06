@@ -310,9 +310,9 @@ def register_model_fields(registry: "FieldRegistry") -> None:
             field_type=FieldType.TEXT,
             tab="model",
             section="vae_config",
-            placeholder="madebyollin/sdxl-vae-fp16-fix",
-            help_text="Optional: Override the default VAE with a custom one",
-            tooltip="Can be a HuggingFace model ID or local path to a custom VAE",
+            placeholder="Leave empty to use model default VAE",
+            help_text="Optional: Override the default VAE with a custom one. Only SDXL, Pixart Sigma, and Kolors models support custom VAEs.",
+            tooltip="HuggingFace model ID or local path to a custom VAE. Most models will use their built-in VAE and ignore this setting.",
             importance=ImportanceLevel.ADVANCED,
             order=11,
         )
@@ -715,24 +715,7 @@ def register_model_fields(registry: "FieldRegistry") -> None:
         )
     )
 
-    # Pretrained VAE Model Path
-    registry._add_field(
-        ConfigField(
-            name="pretrained_vae_model_name_or_path",
-            arg_name="--pretrained_vae_model_name_or_path",
-            ui_label="VAE Model Path",
-            field_type=FieldType.TEXT,
-            tab="model",
-            section="model_config",
-            subsection="advanced_paths",
-            default_value="madebyollin/sdxl-vae-fp16-fix",
-            placeholder="path/to/vae",
-            help_text="Path to pretrained VAE model",
-            tooltip="HuggingFace model ID or local path for the VAE component. Default is a high-quality SDXL VAE.",
-            importance=ImportanceLevel.ADVANCED,
-            order=27,
-        )
-    )
+    # VAE Model Path - Duplicate definition removed, using the one above
 
     # Pretrained T5 Model Path
     registry._add_field(

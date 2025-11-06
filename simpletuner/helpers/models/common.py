@@ -278,8 +278,10 @@ class ModelFoundation(ABC):
                 raise ValueError(f"Model flavour {self.config.model_flavour} not found in {self.HUGGINGFACE_PATHS.keys()}")
         if self.config.pretrained_vae_model_name_or_path is None:
             self.config.pretrained_vae_model_name_or_path = self.config.pretrained_model_name_or_path
+        # Ensure vae_path is properly synchronized with user-configured VAE path
+        # If user set a custom VAE path, use it; otherwise fall back to base model path
         if self.config.vae_path is None:
-            self.config.vae_path = self.config.pretrained_model_name_or_path
+            self.config.vae_path = self.config.pretrained_vae_model_name_or_path
 
     @abstractmethod
     def model_predict(self, prepared_batch, custom_timesteps: list = None):
