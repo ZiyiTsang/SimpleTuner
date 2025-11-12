@@ -156,6 +156,8 @@ class MetadataBackend:
         local_metadata_updates = {}
         processed_file_list = set()
         processed_file_count = 0
+        total_files = len(files)
+        
         statistics = {
             "total_processed": 0,
             "skipped": {
@@ -164,12 +166,16 @@ class MetadataBackend:
                 "not_found": 0,
                 "too_small": 0,
                 "other": 0,
+                "error": 0,
             },
         }
+        
+        logger.debug(f"Worker starting with {total_files} files to process, {len(existing_files_set)} existing files to skip")
 
-        for file in files:
+        for i, file in enumerate(files):
             if str(file) not in existing_files_set:
-                logger.debug(f"Processing file {file}.")
+                if i % 1000 == 0:
+                    logger.info(f"Worker processing file {i+1}/{total_files} ({i/total_files*100:.1f}%): {file}")
                 try:
                     local_aspect_ratio_bucket_indices = self._process_for_bucket(
                         file,
@@ -178,33 +184,52 @@ class MetadataBackend:
                         delete_problematic_images=self.delete_problematic_images,
                         statistics=statistics,
                     )
+                    if i % 1000 == 0:
+                        logger.debug(f"Successfully processed {file}, current buckets: {len(local_aspect_ratio_bucket_indices)}")
                 except Exception as e:
                     logger.error(f"Error processing file {file}. Reason: {e}. Skipping.")
                     statistics["skipped"]["error"] += 1
-                logger.debug(
-                    f"Statistics: {statistics}, total: {sum([len(bucket) for bucket in local_aspect_ratio_bucket_indices.values()])}"
-                )
+                if i % 1000 == 0:
+                    logger.debug(
+                        f"Statistics after {i+1} files: total_processed={statistics['total_processed']}, "
+                        f"buckets={sum([len(bucket) for bucket in local_aspect_ratio_bucket_indices.values()])}"
+                    )
                 processed_file_count += 1
                 statistics["total_processed"] = processed_file_count
                 processed_file_list.add(file)
             else:
                 statistics["skipped"]["already_exists"] += 1
+                if i % 1000 == 0:
+                    logger.debug(f"Skipping existing file {file} ({i+1}/{total_files})")
+                    
+            # Send progress update to main thread
             tqdm_queue.put(1)
+            
+            # Periodic queue updates to avoid memory buildup
             if processed_file_count % 500 == 0:
-                # periodic queue updates to avoid memory buildup
+                logger.info(f"Worker checkpoint: {processed_file_count}/{total_files} files processed, sending updates...")
                 if aspect_ratio_bucket_indices_queue is not None:
                     aspect_ratio_bucket_indices_queue.put(local_aspect_ratio_bucket_indices)
                 if written_files_queue is not None:
                     written_files_queue.put(processed_file_list)
                 metadata_updates_queue.put(local_metadata_updates)
+                # Reset local accumulators
                 local_aspect_ratio_bucket_indices = {}
                 local_metadata_updates = {}
                 processed_file_list = set()
+                
+        logger.info(f"Worker completed processing {total_files} files:")
+        logger.info(f"  - Total processed: {statistics['total_processed']}")
+        logger.info(f"  - Skipped (existing): {statistics['skipped']['already_exists']}")
+        logger.info(f"  - Skipped (errors): {statistics['skipped']['error']}")
+        
+        # Final queue updates
         if aspect_ratio_bucket_indices_queue is not None and local_aspect_ratio_bucket_indices:
             aspect_ratio_bucket_indices_queue.put(local_aspect_ratio_bucket_indices)
         if local_metadata_updates:
             metadata_updates_queue.put(local_metadata_updates)
-            metadata_updates_queue.put(("statistics", statistics))
+        metadata_updates_queue.put(("statistics", statistics))
+        
         time.sleep(0.001)
         logger.debug("Bucket worker completed processing. Returning to main thread.")
 
@@ -279,20 +304,30 @@ class MetadataBackend:
             for file_shard in files_split
         ]
 
+        logger.info(f"(id={self.id}) 🚀 Starting {num_cpus} worker processes for file processing...")
+        for i, worker in enumerate(workers):
+            logger.info(f"(id={self.id}) 📝 Worker {i+1}/{len(workers)} starting with {len(files_split[i])} files")
         for worker in workers:
             worker.start()
+        logger.info(f"(id={self.id}) ✅ All {len(workers)} workers started successfully!")
+        
         last_write_time = time.time()
         written_files = set()
+        files_processed = 0
+        
         with tqdm(
             desc="Generating aspect bucket cache",
             total=len(new_files),
             leave=False,
             ncols=125,
-            miniters=int(len(new_files) / 100),
+            miniters=max(1, int(len(new_files) / 100)),
         ) as pbar:
             if self.should_abort:
                 logger.info("Aborting aspect bucket update.")
                 return
+                
+            logger.info(f"(id={self.id}) 🔄 Main processing loop started - monitoring {len(workers)} workers")
+            
             while (
                 any(worker.is_alive() for worker in workers)
                 or not tqdm_queue.empty()
@@ -301,12 +336,26 @@ class MetadataBackend:
                 or not written_files_queue.empty()
             ):
                 current_time = time.time()
+                
+                # Process progress updates from workers
                 while not tqdm_queue.empty():
-                    pbar.update(tqdm_queue.get())
+                    progress_update = tqdm_queue.get()
+                    pbar.update(progress_update)
+                    files_processed += progress_update
+                    if files_processed % 1000 == 0:
+                        logger.info(f"(id={self.id}) 📊 Progress: {files_processed}/{len(new_files)} files processed ({files_processed/len(new_files)*100:.1f}%)")
+                
+                # Process bucket updates from workers
                 while not aspect_ratio_bucket_indices_queue.empty():
+                    logger.debug(f"(id={self.id}) 🔄 Processing bucket update from worker queue")
                     aspect_ratio_bucket_indices_update = aspect_ratio_bucket_indices_queue.get()
+                    updated_buckets = 0
                     for key, value in aspect_ratio_bucket_indices_update.items():
                         self.aspect_ratio_bucket_indices.setdefault(key, []).extend(value)
+                        updated_buckets += len(value)
+                    logger.info(f"(id={self.id}) 📁 Bucket update: {len(aspect_ratio_bucket_indices_update)} new buckets with {updated_buckets} total files")
+                
+                # Process metadata updates from workers
                 while not metadata_updates_queue.empty():
                     metadata_update = metadata_updates_queue.get()
                     if type(metadata_update) is tuple and metadata_update[0] == "statistics":
@@ -314,33 +363,48 @@ class MetadataBackend:
                         for reason, count in metadata_update[1]["skipped"].items():
                             aggregated_statistics["skipped"][reason] += count
                         aggregated_statistics["total_processed"] += metadata_update[1]["total_processed"]
+                        logger.info(f"(id={self.id}) 📈 Statistics updated: {metadata_update[1]['total_processed']} total processed")
                         continue
+                    updated_metadata = 0
                     for filepath, meta in metadata_update.items():
                         self.set_metadata_by_filepath(filepath=filepath, metadata=meta, update_json=False)
+                        updated_metadata += 1
+                    logger.debug(f"(id={self.id}) 📝 Updated metadata for {updated_metadata} files")
+                
+                # Process written files tracking
                 while not written_files_queue.empty():
                     written_files_batch = written_files_queue.get()
                     written_files.update(written_files_batch)  # Use update for sets
+                    logger.debug(f"(id={self.id}) 💾 Tracked {len(written_files_batch)} newly written files")
 
                 processing_duration = current_time - last_write_time
                 if processing_duration >= self.metadata_update_interval:
-                    logger.debug(
-                        f"In-flight metadata update after {processing_duration} seconds. Saving {len(self.image_metadata)} metadata entries and {len(self.aspect_ratio_bucket_indices)} aspect bucket lists."
-                    )
+                    logger.info(f"(id={self.id}) 💾 Periodic cache save after {processing_duration:.1f} seconds:")
+                    logger.info(f"   - Metadata entries: {len(self.image_metadata)}")
+                    logger.info(f"   - Aspect bucket lists: {len(self.aspect_ratio_bucket_indices)}")
+                    logger.info(f"   - Files written: {len(written_files)}")
                     self.save_cache(enforce_constraints=False)
                     self.save_image_metadata()
                     last_write_time = current_time
 
                 time.sleep(0.001)
 
-        for worker in workers:
+        logger.info(f"(id={self.id}) 🔄 Main processing loop completed, waiting for workers to finish...")
+        for i, worker in enumerate(workers):
             worker.join()
-        logger.info(f"Image processing statistics: {aggregated_statistics}")
+            logger.info(f"(id={self.id}) ✅ Worker {i+1}/{len(workers)} completed")
+            
+        logger.info(f"(id={self.id}) 🎉 All workers finished! Finalizing...")
+        logger.info(f"(id={self.id}) 📊 Final Image processing statistics: {aggregated_statistics}")
+        logger.info(f"(id={self.id}) 💾 Saving final image metadata...")
         self.save_image_metadata()
+        logger.info(f"(id={self.id}) 💾 Saving final cache with constraints...")
         self.save_cache(enforce_constraints=True)
-        logger.info("Completed aspect bucket update.")
+        logger.info(f"(id={self.id}) ✅ Completed aspect bucket update.")
         if self.bucket_report:
             self.bucket_report.update_statistics(aggregated_statistics)
             self.bucket_report.record_bucket_snapshot("post_refresh", self.aspect_ratio_bucket_indices)
+            logger.info(f"(id={self.id}) 📈 Bucket report updated with final statistics")
 
     def split_buckets_between_processes(self, gradient_accumulation_steps=1, apply_padding=False):
         """split bucket contents across processes for distributed training"""
@@ -536,12 +600,62 @@ class MetadataBackend:
 
     def refresh_buckets(self, rank: int = None):
         """discover new files and clean up missing ones"""
-        self.compute_aspect_ratio_bucket_indices()
-        logger.debug(f"Refreshing buckets for rank {rank} via data_backend id {self.id}.")
-        existing_files = StateTracker.get_image_files(data_backend_id=self.id)
+        logger.info(f"(id={self.id}) 🚀 Starting bucket refresh process at {time.strftime('%H:%M:%S')}...")
+        logger.info(f"(id={self.id}) 🔍 System Status Check:")
+        logger.info(f"   - Data Backend ID: {self.id}")
+        logger.info(f"   - Instance Data Dir: {self.instance_data_dir}")
+        logger.info(f"   - Current Buckets: {len(self.aspect_ratio_bucket_indices)}")
+        logger.info(f"   - Existing Metadata Entries: {len(self.image_metadata)}")
+        
+        # Calculate total steps for progress bar
+        total_steps = 2  # compute_aspect_ratio_bucket_indices + update_buckets_with_existing_files
+        if StateTracker.get_args().ignore_missing_files:
+            total_steps = 1  # Only compute_aspect_ratio_bucket_indices
+        
+        with tqdm(
+            desc="Refreshing aspect buckets",
+            total=total_steps,
+            leave=False,
+            ncols=125,
+            unit="step"
+        ) as pbar:
+            # Step 1: Compute aspect ratio bucket indices
+            logger.info(f"(id={self.id}) 🔄 Step 1/2: Computing aspect ratio bucket indices...")
+            logger.info(f"(id={self.id}) ⏱️  Starting data discovery at {time.strftime('%H:%M:%S')} - THIS MAY TAKE TIME!")
+            pbar.set_description("Refreshing aspect buckets - Computing buckets")
+            
+            start_time = time.time()
+            self.compute_aspect_ratio_bucket_indices()
+            step1_duration = time.time() - start_time
+            
+            logger.info(f"(id={self.id}) ✅ Step 1 COMPLETED in {step1_duration:.1f} seconds!")
+            logger.info(f"(id={self.id}) 📊 Step 1 Results:")
+            logger.info(f"   - New buckets created: {len(self.aspect_ratio_bucket_indices)}")
+            logger.info(f"   - Total files processed: {sum(len(bucket) for bucket in self.aspect_ratio_bucket_indices.values())}")
+            pbar.update(1)
+            
+            # Step 2: Update with existing files
+            logger.info(f"(id={self.id}) 🔄 Step 2/2: Updating buckets with existing files...")
+            logger.debug(f"Refreshing buckets for rank {rank} via data_backend id {self.id}.")
+            
+            logger.info(f"(id={self.id}) 🔍 Checking StateTracker cache...")
+            existing_files = StateTracker.get_image_files(data_backend_id=self.id)
+            logger.info(f"(id={self.id}) 📁 StateTracker returned: {type(existing_files)} with {len(existing_files) if existing_files else 0} entries")
 
-        if not StateTracker.get_args().ignore_missing_files:
-            self.update_buckets_with_existing_files(existing_files)
+            if not StateTracker.get_args().ignore_missing_files:
+                pbar.set_description("Refreshing aspect buckets - Updating with existing files")
+                logger.info(f"(id={self.id}) 🧹 Cleaning up buckets with existing files...")
+                self.update_buckets_with_existing_files(existing_files)
+                logger.info(f"(id={self.id}) ✅ Step 2 completed - Bucket cleanup finished!")
+                pbar.update(1)
+            else:
+                logger.info(f"(id={self.id}) ⏭️  Skipping Step 2 (ignore_missing_files=True)")
+        
+        logger.info(f"(id={self.id}) 🎉 Bucket refresh completed successfully at {time.strftime('%H:%M:%S')}!")
+        logger.info(f"(id={self.id}) 📈 Final Status:")
+        logger.info(f"   - Total buckets: {len(self.aspect_ratio_bucket_indices)}")
+        logger.info(f"   - Total files in buckets: {sum(len(bucket) for bucket in self.aspect_ratio_bucket_indices.values())}")
+        logger.info(f"(id={self.id}) ✅ Ready for training!")
         return
 
     def _enforce_min_bucket_size(self):

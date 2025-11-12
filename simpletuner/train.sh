@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+# Set custom configuration path
+export CONFIG_BACKEND="json"
+export CONFIG_PATH="/mnt/zengziyi/Research/MedAug/Checkpoint/config/simpletuner/MedGen_SD3/config"
+
 # Detect if we're running from simpletuner subdirectory or git repo top level
 if [ -f "../config/config.env" ] && [ -f "train.py" ]; then
     # We're in simpletuner/ subdirectory

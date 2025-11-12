@@ -120,7 +120,21 @@ class ParquetMetadataBackend(MetadataBackend):
             else:
                 self.parquet_database = pd.read_parquet(pq, engine="pyarrow")
 
-            self.parquet_database.set_index(self.parquet_config.get("filename_column"), inplace=True)
+            filename_column = self.parquet_config.get("filename_column")
+            logger.info(f"[DEBUG] Setting index to column: {filename_column}")
+            logger.info(f"[DEBUG] Available columns in parquet: {list(self.parquet_database.columns)}")
+            
+            if filename_column not in self.parquet_database.columns:
+                raise ValueError(f"Filename column '{filename_column}' not found in parquet file. Available columns: {list(self.parquet_database.columns)}")
+            
+            try:
+                self.parquet_database.set_index(filename_column, inplace=True)
+                logger.info(f"[DEBUG] Successfully set index to {filename_column}")
+                logger.info(f"[DEBUG] New index type: {type(self.parquet_database.index)}")
+                logger.info(f"[DEBUG] New index sample (first 5): {list(self.parquet_database.index[:5])}")
+            except Exception as e:
+                logger.error(f"[DEBUG] Failed to set index to {filename_column}: {e}")
+                raise e
         else:
             raise FileNotFoundError(f"Parquet could not be loaded from {self.parquet_path}: file does not exist.")
 
@@ -195,33 +209,66 @@ class ParquetMetadataBackend(MetadataBackend):
         return self.caption_cache.get(str(index), None)
 
     def _discover_new_files(self, for_metadata: bool = False, ignore_existing_cache: bool = False):
+        logger.info(f"[DEBUG _discover_new_files] Starting file discovery for {self.id}")
+        logger.info(f"[DEBUG _discover_new_files] Parameters: for_metadata={for_metadata}, ignore_existing_cache={ignore_existing_cache}")
+        
+        # 步骤1: 从StateTracker获取
+        logger.info(f"[DEBUG _discover_new_files] Step 1: Getting files from StateTracker")
         all_image_files = StateTracker.get_image_files(data_backend_id=self.data_backend.id)
+        logger.info(f"[DEBUG _discover_new_files] StateTracker returned: {type(all_image_files)}, length: {len(all_image_files) if all_image_files else 0}")
+        
+        # 步骤2: 如果StateTracker中没有缓存
         if all_image_files is None:
+            logger.info(f"[DEBUG _discover_new_files] Step 2: StateTracker cache miss, querying data backend")
+            logger.info(f"[DEBUG _discover_new_files] Instance data dir: {self.instance_data_dir}")
             all_image_files = self.data_backend.list_files(
                 instance_data_dir=self.instance_data_dir,
                 file_extensions=image_file_extensions,
             )
-            # Flatten nested lists
+            logger.info(f"[DEBUG _discover_new_files] Data backend returned: {type(all_image_files)}, length: {len(all_image_files) if all_image_files else 0}")
+            
+            # 扁平化
             if any(isinstance(i, list) for i in all_image_files):
+                logger.info(f"[DEBUG _discover_new_files] Flattening nested lists")
                 all_image_files = [item for sublist in all_image_files for item in sublist]
+                logger.info(f"[DEBUG _discover_new_files] After flattening: {len(all_image_files)}")
+            
+            logger.info(f"[DEBUG _discover_new_files] Setting StateTracker cache")
             all_image_files = StateTracker.set_image_files(all_image_files, data_backend_id=self.data_backend.id)
+            logger.info(f"[DEBUG _discover_new_files] StateTracker cache set")
         else:
-            # flatten if necessary
+            logger.info(f"[DEBUG _discover_new_files] Step 2: Using StateTracker cache")
+            # 扁平化如果必要
             if any(isinstance(i, list) for i in all_image_files):
+                logger.info(f"[DEBUG _discover_new_files] Flattening cached lists")
                 all_image_files = [item for sublist in all_image_files for item in sublist]
+                logger.info(f"[DEBUG _discover_new_files] After flattening: {len(all_image_files)}")
 
+        # 步骤3: 根据ignore_existing_cache决定返回哪些文件
         if ignore_existing_cache:
+            logger.info(f"[DEBUG _discover_new_files] Step 3: ignore_existing_cache=True, clearing buckets")
             self.aspect_ratio_bucket_indices = {}
-            return list(all_image_files)
+            result = list(all_image_files)
+            logger.info(f"[DEBUG _discover_new_files] Returning {len(result)} files (ignore_existing_cache)")
+            return result
 
+        logger.info(f"[DEBUG _discover_new_files] Step 3: Creating file set and filtering")
         all_image_files_set = set(all_image_files)
+        logger.info(f"[DEBUG _discover_new_files] Created set with {len(all_image_files_set)} files")
 
         if for_metadata:
+            logger.info(f"[DEBUG _discover_new_files] Step 3a: for_metadata=True, filtering files")
             result = [file for file in all_image_files if self.get_metadata_by_filepath(file) is None]
+            logger.info(f"[DEBUG _discover_new_files] Returning {len(result)} files for metadata")
         else:
+            logger.info(f"[DEBUG _discover_new_files] Step 3b: for_metadata=False, filtering unprocessed files")
+            logger.info(f"[DEBUG _discover_new_files] Current buckets: {len(self.aspect_ratio_bucket_indices)}")
             processed_files = set(path for paths in self.aspect_ratio_bucket_indices.values() for path in paths)
+            logger.info(f"[DEBUG _discover_new_files] Found {len(processed_files)} processed files")
             result = [file for file in all_image_files_set if file not in processed_files]
+            logger.info(f"[DEBUG _discover_new_files] Returning {len(result)} new files")
 
+        logger.info(f"[DEBUG _discover_new_files] File discovery completed successfully")
         return result
 
     def reload_cache(self, set_config: bool = True):
@@ -275,8 +322,15 @@ class ParquetMetadataBackend(MetadataBackend):
 
     def compute_aspect_ratio_bucket_indices(self, ignore_existing_cache: bool = False):
         # build buckets from parquet metadata without loading actual files
+        logger.info(f"[DEBUG] Starting compute_aspect_ratio_bucket_indices for {self.id}")
+        logger.info(f"[DEBUG] ignore_existing_cache: {ignore_existing_cache}")
+        
         new_files = self._discover_new_files(ignore_existing_cache=ignore_existing_cache)
-        existing_files_set = set().union(*self.aspect_ratio_bucket_indices.values())
+        logger.info(f"[DEBUG] Discovered {len(new_files)} new files to process")
+        
+        existing_files_set = set().union(*self.aspect_ratio_bucket_indices.values()) if self.aspect_ratio_bucket_indices else set()
+        logger.info(f"[DEBUG] Existing files: {len(existing_files_set)}")
+        
         if self.bucket_report:
             self.bucket_report.record_stage(
                 "existing_cache",
@@ -300,19 +354,23 @@ class ParquetMetadataBackend(MetadataBackend):
                 ignore_existing_cache=ignore_existing_cache,
             )
         if not new_files:
+            logger.info(f"[DEBUG] No new files to process, skipping aspect bucket computation")
             if self.bucket_report:
                 self.bucket_report.update_statistics(statistics)
                 self.bucket_report.record_bucket_snapshot("post_refresh", self.aspect_ratio_bucket_indices)
             return
 
+        logger.info(f"[DEBUG] Loading image metadata...")
         try:
             self.load_image_metadata()
         except Exception as e:
+            logger.error(f"[DEBUG] Error loading image metadata: {e}")
             if ignore_existing_cache:
                 self.image_metadata = {}
             else:
                 raise Exception(f"Error loading image metadata. Consider removing the metadata file manually: {e}")
 
+        logger.info(f"[DEBUG] Starting to process {len(new_files)} files with tqdm progress bar")
         last_write_time = time.time()
         aspect_ratio_bucket_updates = {}
 
@@ -394,22 +452,35 @@ class ParquetMetadataBackend(MetadataBackend):
         statistics: dict = {},
     ):
         # process file using parquet metadata only - no actual file loading
+        logger.debug(f"[DEBUG] Processing file: {image_path_str}")
         try:
             # 1. Identify the row in parquet
             image_path_filtered = image_path_str
-            if not self.parquet_config.get("identifier_includes_extension", False):
-                image_path_filtered = os.path.splitext(os.path.split(image_path_str)[-1])[0]
+            
+            # 1.1. Remove instance_data_dir prefix first, preserving subdirectory structure
             if self.instance_data_dir in image_path_filtered:
                 image_path_filtered = image_path_filtered.replace(self.instance_data_dir, "")
                 if image_path_filtered.startswith("/"):
                     image_path_filtered = image_path_filtered[1:]
+                logger.debug(f"[DEBUG] After removing instance dir: {image_path_filtered}")
 
+            # 1.2. Remove extension if needed
+            if not self.parquet_config.get("identifier_includes_extension", False):
+                image_path_filtered = os.path.splitext(image_path_filtered)[0]
+                logger.debug(f"[DEBUG] After removing extension: {image_path_filtered}")
+
+            logger.debug(f"[DEBUG] Looking for parquet row with index: '{image_path_filtered}'")
+            logger.debug(f"[DEBUG] Available parquet indices (first 5): {list(self.parquet_database.index[:5])}")
+            
             try:
                 database_row = self.parquet_database.loc[image_path_filtered]
-            except KeyError:
+                logger.debug(f"[DEBUG] Found parquet row for {image_path_filtered}")
+            except KeyError as e:
+                logger.warning(f"[DEBUG] KeyError finding parquet row for '{image_path_filtered}': {e}")
                 database_row = None
 
             if database_row is None:
+                logger.warning(f"[DEBUG] No parquet data found for {image_path_str}, skipping")
                 statistics.setdefault("skipped", {}).setdefault("metadata_missing", 0)
                 statistics["skipped"]["metadata_missing"] += 1
                 return aspect_ratio_bucket_indices
